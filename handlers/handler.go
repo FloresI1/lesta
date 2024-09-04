@@ -8,13 +8,16 @@ import (
 	"time"
 
 	"github.com/FloresI1/lesta/struct"
+	"github.com/FloresI1/lesta/util"
 )
 
-var playersMap = make(map[string]structur.Player)
-var matchGroups []structur.MatchGroup
-var mu sync.Mutex
-var nextGroupID = 1
-var groupSize = 3
+var (
+	playersMap  = make(map[string]structur.Player) // Мапа для хранения игроков
+	matchGroups []structur.MatchGroup              // Хранилище групп
+	mu          sync.Mutex                         // Мьютекс для синхронизации доступа
+	nextGroupID = 0                                // Счетчик ID для групп
+	groupSize   = 3                                // Размер группы (количество игроков)
+)
 
 func AddPlayer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -29,6 +32,11 @@ func AddPlayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
+
+	if player.Name == "" {
+		http.Error(w, "Player name cannot be empty", http.StatusBadRequest)
+		return
+	}
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -48,6 +56,42 @@ func AddPlayer(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Player %s added.\n", player.Name)
 }
 
+func CreateMatchGroup() {
+	var matchGroup structur.MatchGroup
+	matchGroup.ID = nextGroupID
+	nextGroupID++
+
+	var playersInGroup []structur.Player
+	var stats util.GroupStats
+
+	for name := range playersMap {
+		player := playersMap[name]
+		playersInGroup = append(playersInGroup, player)
+		stats.Update(player)
+
+		if len(playersInGroup) == groupSize {
+			break
+		}
+	}
+
+	for _, player := range playersInGroup {
+		delete(playersMap, player.Name)
+	}
+
+	for _, player := range playersInGroup {
+		matchGroup.PlayerNames = append(matchGroup.PlayerNames, player.Name)
+	}
+
+	avgSkill, avgLatency, avgWaitTime := util.CalculateAverages(stats)
+
+	fmt.Printf("Created Match Group %d with players: %v\n", matchGroup.ID, matchGroup.PlayerNames)
+	fmt.Printf("Skill - Min: %.2f, Max: %.2f, Avg: %.2f\n", stats.MinSkill, stats.MaxSkill, avgSkill)
+	fmt.Printf("Latency - Min: %.2f, Max: %.2f, Avg: %.2f\n", stats.MinLatency, stats.MaxLatency, avgLatency)
+	fmt.Printf("Wait Time - Min: %v, Max: %v, Avg: %v\n", stats.MinWaitTime, stats.MaxWaitTime, avgWaitTime)
+
+	matchGroups = append(matchGroups, matchGroup)
+}
+
 func GetPlayers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -56,63 +100,6 @@ func GetPlayers(w http.ResponseWriter, r *http.Request) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	json.NewEncoder(w).Encode(playersMap)
-}
 
-func CreateMatchGroup() {
-	group := structur.MatchGroup{
-		ID:           nextGroupID,
-		PlayerNames:  make([]string, 0, groupSize),
-		MinSkill:     0,
-		MaxSkill:     0,
-		AvgSkill:     0,
-		MinLatency:   0,
-		MaxLatency:   0,
-		AvgLatency:   0,
-		MinQueueTime: 0,
-		MaxQueueTime: 0,
-		AvgQueueTime: 0,
-	}
-
-	for name, player := range playersMap {
-		group.PlayerNames = append(group.PlayerNames, name)
-
-		if group.MinSkill == 0 || player.Skill < group.MinSkill {
-			group.MinSkill = player.Skill
-		}
-		if player.Skill > group.MaxSkill {
-			group.MaxSkill = player.Skill
-		}
-		group.AvgSkill += player.Skill
-
-		if group.MinLatency == 0 || player.Latency < group.MinLatency {
-			group.MinLatency = player.Latency
-		}
-		if player.Latency > group.MaxLatency {
-			group.MaxLatency = player.Latency
-		}
-		group.AvgLatency += player.Latency
-
-		queueTime := time.Since(player.JoinTime)
-		if group.MinQueueTime == 0 || queueTime < group.MinQueueTime {
-			group.MinQueueTime = queueTime
-		}
-		if queueTime > group.MaxQueueTime {
-			group.MaxQueueTime = queueTime
-		}
-		group.AvgQueueTime += queueTime
-
-		delete(playersMap, name)
-
-		if len(group.PlayerNames) >= groupSize {
-			break
-		}
-	}
-
-	group.AvgSkill /= float64(len(group.PlayerNames))
-	group.AvgLatency /= float64(len(group.PlayerNames))
-	group.AvgQueueTime /= time.Duration(len(group.PlayerNames))
-
-	matchGroups = append(matchGroups, group)
-	nextGroupID++
+	json.NewEncoder(w).Encode(matchGroups)
 }

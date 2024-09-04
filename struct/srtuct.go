@@ -3,21 +3,24 @@ package structur
 import "time"
 
 type Player struct {
-	Name     string `json:"name"`    // Имя игрока
-	Skill    float64 `json:"skill"`   // Уровень навыка игрока
-	Latency  float64 `json:"latency"`   // Задержка игрока в миллисекундах
-	JoinTime time.Time // Время добавления игрока в очередь
+	Name     string `json:"name"`    
+	Skill    float64 `json:"skill"`  
+	Latency  float64 `json:"latency"`      
+	JoinTime time.Time 
 }
 type MatchGroup struct {
-	ID           int           // Уникальный идентификатор группы
-	PlayerNames  []string      // Список имен игроков в группе
-	MinSkill     float64       // Минимальный уровень навыка в группе
-	MaxSkill     float64       // Максимальный уровень навыка в группе
-	AvgSkill     float64       // Средний уровень навыка в группе
-	MinLatency   float64       // Минимальная задержка в группе
-	MaxLatency   float64       // Максимальная задержка в группе
-	AvgLatency   float64       // Средняя задержка в группе
-	MinQueueTime time.Duration // Минимальное время в очереди
-	MaxQueueTime time.Duration // Максимальное время в очереди
-	AvgQueueTime time.Duration // Среднее время в очереди
+	ID           int           
+	PlayerNames  []string   
+}
+type GroupStats struct {
+	MinSkill       float64
+	MaxSkill       float64
+	TotalSkill     float64
+	MinLatency     float64
+	MaxLatency     float64
+	TotalLatency   float64
+	MinWaitTime     time.Duration
+	MaxWaitTime     time.Duration
+	TotalWaitTime   time.Duration
+	PlayerCount     int
 }
